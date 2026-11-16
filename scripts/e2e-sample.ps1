@@ -1,8 +1,19 @@
+param([int]$StartupTimeoutMilliseconds = 0, [int]$RetryIntervalMilliseconds = 25)
 $ErrorActionPreference = 'Stop'
-$socket = [System.Net.Sockets.Socket]::new([System.Net.Sockets.AddressFamily]::Unix, [System.Net.Sockets.SocketType]::Stream, [System.Net.Sockets.ProtocolType]::Unspecified)
-$socket.ReceiveTimeout = 5000
-$socket.SendTimeout = 5000
-$socket.Connect([System.Net.Sockets.UnixDomainSocketEndPoint]::new((Join-Path $env:RLDYOUR_CLIPBOARD_HOME 'rldyour-clipboard.sock')))
+$deadline = [DateTime]::UtcNow.AddMilliseconds($StartupTimeoutMilliseconds)
+while ($true) {
+  $socket = [System.Net.Sockets.Socket]::new([System.Net.Sockets.AddressFamily]::Unix, [System.Net.Sockets.SocketType]::Stream, [System.Net.Sockets.ProtocolType]::Unspecified)
+  $socket.ReceiveTimeout = 5000
+  $socket.SendTimeout = 5000
+  try {
+    $socket.Connect([System.Net.Sockets.UnixDomainSocketEndPoint]::new((Join-Path $env:RLDYOUR_CLIPBOARD_HOME 'rldyour-clipboard.sock')))
+    break
+  } catch {
+    $socket.Dispose()
+    if ([DateTime]::UtcNow -ge $deadline) { throw }
+    Start-Sleep -Milliseconds $RetryIntervalMilliseconds
+  }
+}
 $stream = [System.Net.Sockets.NetworkStream]::new($socket, $false)
 $encoding = [System.Text.UTF8Encoding]::new($false)
 function Send-Frame($frame) {

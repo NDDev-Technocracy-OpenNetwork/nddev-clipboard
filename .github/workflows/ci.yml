@@ -2,255 +2,163 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
   pull_request:
-  # Advisory drift and action rot happen without pushes too.
+    branches: [dev, main]
+    types: [opened, synchronize, reopened, labeled, edited]
+  workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  lint:
-    name: Lint and metadata
+  source:
+    name: Source and GNOME
+    if: github.event.action != 'labeled' || github.event.label.name == 'runner:github'
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - run: cargo fmt --check --manifest-path daemon/Cargo.toml
-      - run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y shellcheck
-      - run: shellcheck scripts/*.sh install.sh uninstall.sh install-macos.sh uninstall-macos.sh
-      - run: ./scripts/check-version.sh
-      # The mime tables and the protocol constants exist in three languages;
-      # nothing but this stops them drifting apart.
-      - run: ./scripts/check-consistency.sh
-
-  daemon:
-    name: Daemon (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, macos-26, macos-26-intel, windows-2025]
-    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: daemon
+    permissions:
+      contents: read
+    outputs:
+      minimum-rust: ${{ steps.minimum.outputs.version }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Prepare source checks
+        id: setup
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/prepare@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
         with:
-          persist-credentials: false
-      # Restores the latest main entry for this OS and architecture on every
-      # event; only main saves it, so pull requests never write the cache.
-      - uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/hosted-cache@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
-      # The macOS and Windows capture backends cannot be cross-checked from a
-      # Linux workstation: the bundled SQLite needs a C toolchain for the
-      # target. These three jobs are what actually proves they compile.
-      - run: cargo clippy --locked --all-targets --all-features -- -D warnings
-      - run: cargo test --locked --all-features
-      - run: cargo build --release --locked --all-features
-      # Without the feature the daemon decodes nothing at all, and the code
-      # that is left has to stand on its own — including having no constants
-      # that only the removed half referred to.
-      - name: Check without thumbnails
-        run: cargo clippy --locked --all-targets --no-default-features -- -D warnings
-      - run: cargo test --locked --no-default-features
-      - run: cargo build --release --locked --no-default-features
-
-  msrv:
-    name: Minimum Rust version
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - run: rustup toolchain install 1.95 --profile minimal
-      - run: cargo +1.95 check --locked --manifest-path daemon/Cargo.toml
-
-  extension:
-    name: GNOME extension
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y libglib2.0-bin gjs
-      - run: ./scripts/check-extension.sh
-      - name: Check the extension's own logic
-        run: |
-          gjs -m extension/tests/smoke.js
-          test_root="$(mktemp -d)"
-          XDG_RUNTIME_DIR="${test_root}" gjs -m extension/tests/framing.js
-          rmdir "${test_root}"
-
-  e2e:
-    name: End to end (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        # Windows included: it is the only run that exercises uds_windows.
-        os: [ubuntu-24.04, macos-26, macos-26-intel, windows-2025]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.13'
-      - run: cargo build --release --locked --manifest-path daemon/Cargo.toml
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        with:
-          version: '0.13.8'
-          # Only one pinned pytest wheel is fetched; a cache would cost more than it saves.
-          enable-cache: 'false'
-      - name: Record and read the isolated archive (Unix)
-        if: runner.os != 'Windows'
-        timeout-minutes: 5
-        shell: bash
-        run: |
-          RLDYOUR_CLIPBOARD_HOME="$(mktemp -d /tmp/cb.XXXX)"
-          RLDYOUR_CLIPBOARD_HOME="$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve())' "${RLDYOUR_CLIPBOARD_HOME}")"
-          export RLDYOUR_CLIPBOARD_HOME
-          export RLDYOUR_CLIPBOARD_CAPTURE=0
-          ./daemon/target/release/rldyour-clipboardd &
-          daemon=$!
-          trap 'kill "${daemon}" 2>/dev/null || true' EXIT
-          sleep 1
-          PYTHONPATH=python/src uv run --no-project python scripts/e2e-sample.py
-          if [[ "${RUNNER_OS}" == 'Linux' ]]; then
-            # The hosted image can point at a transient azure mirror. Use the
-            # public HTTPS mirror and bounded retries so a mirror outage cannot
-            # consume the whole five-minute E2E step.
-            for source in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
-              if [[ -f "${source}" ]]; then
-                sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "${source}"
-              fi
-            done
-            sudo apt-get update -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
-            sudo apt-get install --no-install-recommends -y gjs
-            gjs -m extension/tests/client.js
-          else
-            PYTHONPATH=python/src uv run --no-project python -c 'from rldyour_clipboard import Client; c=Client(role="both", watch=False); c.record([("text/plain", b"native socket synthetic")]); c.record([("text/plain", b"native socket synthetic large:" + b"x" * (3 * 1024 * 1024))]); c.close()'
-            swiftc -swift-version 6 -parse-as-library -warnings-as-errors macos/Models.swift macos/SocketClient.swift macos/tests/SocketTests.swift -o /tmp/clipboard-socket-test
-            /tmp/clipboard-socket-test "${RLDYOUR_CLIPBOARD_HOME}/rldyour-clipboard.sock"
-          fi
-      - name: Verify retention and restart (Unix)
-        if: runner.os != 'Windows'
-        run: PYTHONPATH=python/src uv run --no-project python scripts/retention-e2e.py
-      - name: Record and read the isolated archive (Windows)
-        if: runner.os == 'Windows'
-        timeout-minutes: 5
-        shell: pwsh
-        run: |
-          $env:RLDYOUR_CLIPBOARD_HOME = Join-Path ([IO.Path]::GetTempPath()) ([Guid]::NewGuid().ToString())
-          New-Item -ItemType Directory $env:RLDYOUR_CLIPBOARD_HOME | Out-Null
-          $env:RLDYOUR_CLIPBOARD_CAPTURE = '0'
-          $daemon = Start-Process -PassThru -WindowStyle Hidden daemon/target/release/rldyour-clipboardd.exe
-          try { Start-Sleep -Seconds 1; ./scripts/e2e-sample.ps1 }
-          finally { Stop-Process -Id $daemon.Id -Force -ErrorAction SilentlyContinue }
-
-  python-client:
-    name: Python client (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, macos-26]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.13'
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        with:
-          version: '0.13.8'
-          # Only one pinned pytest wheel is fetched; a cache would cost more than it saves.
-          enable-cache: 'false'
-      - name: Run the test suite
-        shell: bash
-        run: PYTHONPATH=python/src uv run --no-project --with pytest==9.1.1 pytest python/tests
-      - if: runner.os == 'Linux'
-        run: uv build python
-
-  macos-client:
-    name: Native macOS client (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-26, macos-26-intel]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - run: |
-          swiftc -target "$(uname -m)-apple-macosx12.0" -swift-version 6 -parse-as-library -warnings-as-errors -O -framework AppKit macos/*.swift -o /tmp/clipboard-app
-          swiftc -swift-version 6 -parse-as-library -warnings-as-errors macos/Models.swift macos/tests/ModelsTests.swift -o /tmp/clipboard-model-tests
-          /tmp/clipboard-model-tests
-          plutil -lint macos/*.plist daemon/launchd/*.plist
-
-  audit:
-    name: Dependency advisories
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - run: cargo install cargo-audit --version 0.22.1 --locked
-      - run: cargo audit
-        working-directory: daemon
-
-  workflows:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
+          managed: false
+          working-directory: daemon
           fetch-depth: 0
-      - uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/hosted-sdk@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
-        with:
-          tools: zizmor@1.32.0
-      - name: Install actionlint 1.7.12 and gitleaks 8.30.1, checked against their digests
-        run: |
-          set -euo pipefail
-          bin="$HOME/.local/bin"; mkdir -p "$bin"
-          curl -fsSL -o "$RUNNER_TEMP/actionlint.tgz" "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz"
-          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tgz" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/actionlint.tgz" -C "$bin" "actionlint"
-          curl -fsSL -o "$RUNNER_TEMP/gitleaks.tgz" "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
-          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tgz" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$bin" "gitleaks"
-          echo "$bin" >> "$GITHUB_PATH"
-      - name: Lint and audit workflows
-        run: |
-          actionlint
-          zizmor --offline --no-progress .github/workflows/ci.yml
-      - name: Scan new pull request commits, or the full history on main
+          rust-version: '1.100.0'
+          rust-components: rustfmt
+          python-version: '3.13.18'
+          node-version: '26.13.1'
+          tools: shellcheck@0.11.0,betterleaks@1.10.1
+      - name: Check the source and GNOME contracts
+        id: project
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
+          EVENT: ${{ github.event_name }}
         run: |
-          if [ -n "$BASE" ]; then
-            gitleaks git --no-banner --redact --log-opts="$BASE..$HEAD" .
-          else
-            gitleaks git --no-banner --redact .
-          fi
+          just setup-platform
+          just check
+          just test-extension
+          if [ "$EVENT" != pull_request ]; then just secrets; fi
+      - name: Read the declared minimum compiler
+        id: minimum
+        run: |
+          version=$(just minimum-rust-version)
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Complete source checks
+        if: always()
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/complete@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+        with:
+          status: ${{ job.status }}
+          project-outcome: ${{ steps.project.outcome == 'failure' && 'failure' || 'success' }}
+          task: source and GNOME checks
+          task-type: test
+          name: source
+          read-token: ${{ steps.setup.outputs.read-token }}
 
+  native:
+    name: Native (${{ matrix.os }})
+    if: github.event.action != 'labeled' || github.event.label.name == 'runner:github'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            uv: '0.13.8'
+            tools: cargo-deny@0.20.2
+          - os: macos-26
+            uv: '0.13.8'
+            tools: ''
+          - os: macos-26-intel
+            uv: '0.13.8'
+            tools: ''
+          - os: windows-2025
+            uv: ''
+            tools: ''
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      # The released recipe entry point lacks the standard Intel macOS label.
+      # The documented prepare/complete frame keeps the same SDK/cache/lifecycle implementation.
+      - name: Prepare the native job
+        id: setup
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/prepare@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+        with:
+          managed: false
+          working-directory: daemon
+          rust-version: '1.100.0'
+          rust-components: rustfmt,clippy
+          python-version: '3.13.18'
+          uv-version: ${{ matrix.uv }}
+          tools: ${{ matrix.tools }}
+      - name: Qualify the current platform
+        id: project
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          just setup
+          just setup-platform
+          if [ "$EVENT" = pull_request ]; then just test; else just verify-native; fi
+      - name: Complete the native job
+        if: always()
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/complete@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+        with:
+          status: ${{ job.status }}
+          project-outcome: ${{ steps.project.outcome == 'failure' && 'failure' || 'success' }}
+          task: native platform qualification
+          task-type: build
+          name: native-${{ runner.os }}-${{ runner.arch }}
+          artifact: ${{ github.event_name != 'pull_request' && 'dist' || '' }}
+          artifact-name: clipboard-${{ runner.os }}-${{ runner.arch }}
+          artifact-days: 14
+          diagnostics: build/ci/daemon.log
+          read-token: ${{ steps.setup.outputs.read-token }}
+
+  minimum:
+    name: Minimum Rust version
+    needs: source
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      RUSTUP_TOOLCHAIN: ${{ needs.source.outputs.minimum-rust }}
+    steps:
+      - name: Prepare the declared minimum compiler
+        id: setup
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/prepare@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+        with:
+          managed: false
+          working-directory: daemon
+          rust-version: ${{ needs.source.outputs.minimum-rust }}
+          python-version: '3.13.18'
+      - name: Check the declared minimum compiler
+        id: project
+        run: |
+          just setup-daemon
+          just check-minimum-rust
+      - name: Complete the minimum-compiler check
+        if: always()
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/complete@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+        with:
+          status: ${{ job.status }}
+          project-outcome: ${{ steps.project.outcome == 'failure' && 'failure' || 'success' }}
+          task: declared minimum compiler
+          task-type: test
+          name: minimum-rust
+          read-token: ${{ steps.setup.outputs.read-token }}
+
+  merge-stops:
+    uses: NDDev-Technocracy-OpenNetwork/nddev-ci/.github/workflows/merge-stops.yml@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+    permissions:
+      contents: read
