@@ -554,6 +554,10 @@ def reconcile_distribution(
     suffix = OS_NAME.lower() + "-" + ARCH.lower()
     qualification_name = f"qualification-{suffix}.json"
     metadata_name = f"release-metadata-{suffix}.json"
+    for name in (qualification_name, metadata_name):
+        path = folder / name
+        if path.is_symlink() or not path.is_file():
+            raise ValueError("Qualification metadata must be regular files")
     receipt = json.loads((folder / qualification_name).read_text())
     metadata = json.loads((folder / metadata_name).read_text())
     if (
@@ -593,8 +597,12 @@ def reconcile_distribution(
         ]
         if members != archive["members"]:
             raise ValueError("Existing archive contents or modes changed")
-    if {path.name for path in folder.iterdir()} != expected:
-        raise ValueError("Existing qualification contains unknown files")
+    actual = {path.name for path in folder.iterdir()}
+    if actual != expected:
+        raise ValueError(
+            f"Qualification files differ: extra={sorted(actual - expected)}, "
+            f"missing={sorted(expected - actual)}"
+        )
 
 
 def build() -> None:
@@ -652,7 +660,14 @@ def build() -> None:
                         dist / f"rldyour-clipboard-gnome-{version}.zip",
                     )
                 )
-                run("uv", "build", "python", "--out-dir", str(dist))
+                run(
+                    "uv",
+                    "build",
+                    "python",
+                    "--no-create-gitignore",
+                    "--out-dir",
+                    str(dist),
+                )
                 for path in sorted(dist.glob("*.whl")) + sorted(dist.glob("*.tar.gz")):
                     if path.name.startswith("rldyour_clipboard-"):
                         members = archive_files(path)
@@ -747,12 +762,19 @@ def build() -> None:
             "rust": captured("rustc", "--version"),
             "image_version": os.environ.get("ImageVersion"),
             "archives": archives,
-            "checks": [
-                "native feature sets",
-                "platform client",
-                "synthetic IPC",
-                "retention",
-            ],
+            "checks": ["native feature sets", "archive boundaries", "synthetic IPC"]
+            + (["Python client", "retention/restart"] if os.name != "nt" else [])
+            + (
+                ["GNOME client", "dependency advisories"]
+                if sys.platform == "linux"
+                else []
+            )
+            + (
+                ["Swift models", "macOS client compile/socket"]
+                if sys.platform == "darwin"
+                else []
+            )
+            + (["Windows protocol/pin/restore"] if os.name == "nt" else []),
             "unperformed": ["installed-user qualification", "physical recovery"],
             "binary_sha256": digest(binary()),
             "client_binary_sha256": client_digest(),
@@ -770,8 +792,8 @@ def build() -> None:
         (dist / f"release-metadata-{suffix}.json").write_text(
             json.dumps(metadata, indent=2) + "\n"
         )
+        reconcile_distribution(dist, commit, version, digest(binary()))
         dist.rename(destination)
-        reconcile_distribution(destination, commit, version, digest(binary()))
 
 
 def main() -> None:
