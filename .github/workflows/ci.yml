@@ -36,7 +36,13 @@ jobs:
           rust-components: rustfmt
           python-version: '3.13.18'
           node-version: '26.13.1'
-          tools: shellcheck@0.11.0,betterleaks@1.10.1
+          tools: shellcheck@0.11.0
+      - name: Prepare the full-history secret checker
+        if: github.event_name != 'pull_request'
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/hosted-sdk@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+        with:
+          managed: false
+          tools: betterleaks@1.10.1
       - name: Check the source and GNOME contracts
         id: project
         env:

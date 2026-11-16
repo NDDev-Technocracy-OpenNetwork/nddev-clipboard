@@ -34,8 +34,8 @@ just verify
 Source and Git live on the source host; `just check` builds nothing. Native tests,
 Swift/GNOME/Windows checks, archive fixtures and packaging belong on execution hosts
 or public hosted CI. `just test` keeps both Rust feature sets and the same platform
-acceptance. `just build` packages its exact tested binaries and verifies archive
-contents and modes. CI reads the minimum compiler from daemon/Cargo.toml rather than
+acceptance, then packages the exact tested binaries and verifies archive contents
+and modes. `just build` also verifies a repeated packaging request. CI reads the minimum compiler from daemon/Cargo.toml rather than
 maintaining another version. `just verify-native` reuses the separate source check
 in the platform matrix. `just setup-platform` is restricted to ephemeral public
 Linux CI and never prepares a contour host.

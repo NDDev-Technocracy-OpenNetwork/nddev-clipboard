@@ -427,6 +427,7 @@ def tests() -> None:
         "client_binary_sha256": client_digest(),
     }
     (output("build/ci") / "tests.json").write_text(json.dumps(result, indent=2) + "\n")
+    build()
 
 
 def digest(path: Path) -> str:
