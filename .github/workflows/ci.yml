@@ -34,7 +34,7 @@ jobs:
           fetch-depth: 0
           rust-version: '1.100.0'
           rust-components: rustfmt
-          python-version: '3.13.18'
+          python-version: '3.15.2'
           node-version: '26.13.1'
           tools: shellcheck@0.11.0
       - name: Prepare the full-history secret checker
@@ -103,7 +103,7 @@ jobs:
           working-directory: daemon
           rust-version: '1.100.0'
           rust-components: rustfmt,clippy
-          python-version: '3.13.18'
+          python-version: '3.15.2'
           uv-version: ${{ matrix.uv }}
           tools: ${{ matrix.tools }}
       - name: Qualify the current platform
@@ -147,7 +147,7 @@ jobs:
           managed: false
           working-directory: daemon
           rust-version: ${{ needs.source.outputs.minimum-rust }}
-          python-version: '3.13.18'
+          python-version: '3.15.2'
       - name: Check the declared minimum compiler
         id: project
         run: |
