@@ -25,18 +25,26 @@ inside the daemon.
 ## Verify
 
 ```sh
-./scripts/check-version.sh
-cargo fmt --check --manifest-path daemon/Cargo.toml
-cargo test --locked --all-features --manifest-path daemon/Cargo.toml
-cargo clippy --locked --all-targets --all-features --manifest-path daemon/Cargo.toml -- -D warnings
-./scripts/check-extension.sh && gjs -m extension/tests/smoke.js
-PYTHONPATH=python/src uv run --no-project --with pytest==9.1.1 pytest python/tests
-./scripts/check-consistency.sh
-test_root=$(mktemp -d /tmp/cb.XXXX)
-export RLDYOUR_CLIPBOARD_HOME=$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve())' "$test_root")
-RLDYOUR_CLIPBOARD_CAPTURE=0 ./daemon/target/debug/rldyour-clipboardd &
-./scripts/e2e-sample.py   # against the spawned daemon's socket
+just setup
+just check
+just test
+just verify
 ```
+
+Source and Git live on the source host; `just check` builds nothing. Native tests,
+Swift/GNOME/Windows checks, archive fixtures and packaging belong on execution hosts
+or public hosted CI. `just test` keeps both Rust feature sets and the same platform
+acceptance, then packages the exact tested binaries and verifies archive contents
+and modes. `just build` also verifies a repeated packaging request. CI reads the minimum compiler from daemon/Cargo.toml rather than
+maintaining another version. `just verify-native` reuses the separate source check
+in the platform matrix. `just setup-platform` is restricted to ephemeral public
+Linux CI and never prepares a contour host.
+
+The shared release consumes the full development check's artifacts and product
+metadata; it does not rebuild from a tag. Product version preparation and main
+adoption must qualify that metadata before publication. No CI command installs a
+service, reads a user's archive or writes the system pasteboard.
+
 
 ## Invariants guarded by check-consistency.sh
 

@@ -9,3 +9,8 @@ __pycache__/
 
 # Compiled schemas; the XML source is what is checked in.
 /extension/schemas/gschemas.compiled
+
+# Owned CI products and qualification records.
+/build/ci/
+/dist/
+/.pytest_cache/

@@ -1,0 +1,10 @@
+[fixture]
+startup_seconds = 5.0
+shutdown_seconds = 5.0
+poll_seconds = 0.025
+command_seconds = 300
+
+[linux]
+packages = ["gjs", "libglib2.0-bin"]
+apt_retries = 2
+apt_timeout_seconds = 30

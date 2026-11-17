@@ -156,19 +156,21 @@ explicit `remove` can delete a pinned record.
 ## Validation
 
 ```sh
-./scripts/check-version.sh
-./scripts/check-consistency.sh
-./scripts/check-extension.sh
-cargo test --locked --all-features --manifest-path daemon/Cargo.toml
-cargo clippy --locked --all-targets --all-features --manifest-path daemon/Cargo.toml -- -D warnings
-PYTHONPATH=python/src uv run --no-project --with pytest==9.1.1 pytest python/tests
-PYTHONPATH=python/src python3 scripts/retention-e2e.py
+just setup
+just check
+just test
+just verify
 ```
 
-Integration tests require a release build. Use a short, isolated temporary
-`RLDYOUR_CLIPBOARD_HOME` and `RLDYOUR_CLIPBOARD_CAPTURE=0` for all test daemons.
-Never run fixtures against a user's archive or OS clipboard. CI checks Linux,
-macOS ARM/Intel, Windows, minimum Rust, GNOME transport and dependency advisories.
+`just check` reads source and cross-language metadata without building. Native
+qualification builds both Rust feature sets, runs the platform's existing client
+checks and owns a short synthetic archive with capture disabled. The same tested
+binary is packaged only after those checks pass. Packages are read back to verify
+complete contents, hashes and execution modes; per-platform qualification metadata
+travels beside them. Never run fixtures against a user's archive or OS clipboard.
+CI retains Linux, macOS ARM/Intel, Windows, minimum Rust, GNOME transport and
+dependency advisories. Main publication reuses the successful development check's
+artifacts, with product-version metadata checked before publication.
 See [quality notes](docs/quality.md) for limits and research sources.
 
 ## Licence

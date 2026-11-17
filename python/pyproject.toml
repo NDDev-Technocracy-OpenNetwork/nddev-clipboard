@@ -27,3 +27,6 @@ rldyour-clipboard = "rldyour_clipboard:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rldyour_clipboard"]
+
+[dependency-groups]
+test = ["pytest==9.1.1; python_version >= '3.10'"]
