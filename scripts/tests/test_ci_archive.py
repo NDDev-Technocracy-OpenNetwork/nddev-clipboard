@@ -2,6 +2,7 @@
 
 import importlib.util
 import io
+import stat
 import tarfile
 import tempfile
 import unittest
@@ -47,6 +48,30 @@ class ArchiveBoundary(unittest.TestCase):
                     archive.writestr("entry", b"second")
             with self.assertRaises(ValueError):
                 ci.archive_files(path)
+
+    def test_zip_rejects_special_entries_with_directory_names(self):
+        for kind in [stat.S_IFLNK, stat.S_IFIFO, stat.S_IFSOCK]:
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "bad.zip"
+                entry = zipfile.ZipInfo("entry/")
+                entry.create_system = 3
+                entry.external_attr = (kind | 0o755) << 16
+                with zipfile.ZipFile(path, "w") as archive:
+                    archive.writestr(entry, b"")
+                with self.assertRaises(ValueError):
+                    ci.archive_files(path)
+
+    def test_zip_accepts_normal_directory_metadata(self):
+        for kind in [0, stat.S_IFDIR]:
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "normal.zip"
+                entry = zipfile.ZipInfo("folder/")
+                entry.create_system = 3
+                entry.external_attr = (kind | 0o755) << 16
+                with zipfile.ZipFile(path, "w") as archive:
+                    archive.writestr(entry, b"")
+                    archive.writestr("folder/content", b"safe")
+                self.assertEqual(set(ci.archive_files(path)), {"folder/content"})
 
     def test_rejects_windows_and_empty_file_paths(self):
         for name in ["C:/outside", "../outside", "folder\\outside"]:
