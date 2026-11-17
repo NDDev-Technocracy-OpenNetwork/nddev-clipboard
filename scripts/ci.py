@@ -477,17 +477,12 @@ def archive_files(path: Path) -> dict[str, tuple[str, int]]:
             for member in archive.infolist():
                 name = member_name(member.filename)
                 mode = member.external_attr >> 16
-                if mode & 0o7000:
-                    raise ValueError("Archive member has unsafe permissions")
+                expected_kind = stat.S_IFDIR if member.is_dir() else stat.S_IFREG
+                if mode & 0o7000 or stat.S_IFMT(mode) not in (0, expected_kind):
+                    raise ValueError("Archive member has unsafe permissions or type")
                 if member.is_dir():
                     continue
-                if (
-                    name == "."
-                    or name in found
-                    or mode & 0o7000
-                    or stat.S_ISLNK(mode)
-                    or stat.S_IFMT(mode) not in (0, stat.S_IFREG)
-                ):
+                if name == "." or name in found:
                     raise ValueError("Archive contains duplicate or nonregular members")
                 with archive.open(member) as stream:
                     found[name] = (
