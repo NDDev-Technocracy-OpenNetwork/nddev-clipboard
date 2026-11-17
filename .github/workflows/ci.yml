@@ -37,20 +37,19 @@ jobs:
           node-version: '26.13.1'
           tools: shellcheck@0.11.0
       - name: Prepare the full-history secret checker
-        if: github.event_name != 'pull_request'
-        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/hosted-sdk@a12acfc75fd7daee2fac9a246ee60683fe18955b # v0.6.67
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/release-assets@a12acfc75fd7daee2fac9a246ee60683fe18955b # v0.6.67
         with:
           managed: false
-          tools: betterleaks@1.10.1
+          manifest: scripts/ci-tools.json
+          directory: ${{ runner.temp }}/clipboard-source-tools
+          add-to-path: true
       - name: Check the source and GNOME contracts
         id: project
-        env:
-          EVENT: ${{ github.event_name }}
         run: |
           just setup-platform
           just check
           just test-extension
-          if [ "$EVENT" != pull_request ]; then just secrets; fi
+          just secrets
       - name: Read the declared minimum compiler
         id: minimum
         run: |
@@ -62,7 +61,7 @@ jobs:
         uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/complete@a12acfc75fd7daee2fac9a246ee60683fe18955b # v0.6.67
         with:
           status: ${{ job.status }}
-          project-outcome: ${{ steps.project.outcome == 'failure' && 'failure' || 'success' }}
+          project-outcome: ${{ steps.project.outcome }}
           task: source and GNOME checks
           task-type: test
           name: source
@@ -118,7 +117,7 @@ jobs:
         uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/complete@a12acfc75fd7daee2fac9a246ee60683fe18955b # v0.6.67
         with:
           status: ${{ job.status }}
-          project-outcome: ${{ steps.project.outcome == 'failure' && 'failure' || 'success' }}
+          project-outcome: ${{ steps.project.outcome }}
           task: native platform qualification
           task-type: build
           name: native-${{ runner.os }}-${{ runner.arch }}
@@ -156,7 +155,7 @@ jobs:
         uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/complete@a12acfc75fd7daee2fac9a246ee60683fe18955b # v0.6.67
         with:
           status: ${{ job.status }}
-          project-outcome: ${{ steps.project.outcome == 'failure' && 'failure' || 'success' }}
+          project-outcome: ${{ steps.project.outcome }}
           task: declared minimum compiler
           task-type: test
           name: minimum-rust
