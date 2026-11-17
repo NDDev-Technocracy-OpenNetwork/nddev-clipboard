@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "assets": [
+    {
+      "repository": "betterleaks/betterleaks",
+      "asset": 740237681,
+      "tag": "v1.10.1",
+      "name": "betterleaks_1.10.1_linux_x64.tar.gz",
+      "file": "betterleaks_1.10.1_linux_x64.tar.gz",
+      "size": 10305498,
+      "sha256": "c174b42d7aa60caf58c0c3e555c0e4bed01fe6b0d99a412bce777b5af4ce913e",
+      "members": [
+        {
+          "path": "betterleaks",
+          "file": "betterleaks",
+          "size": 25133216,
+          "sha256": "506082605cad984abd6ecf979a5f00fd6d701bc3ab2104a6029b1d068b3e320c",
+          "executable": true
+        }
+      ]
+    }
+  ]
+}
