@@ -27,7 +27,7 @@ jobs:
     steps:
       - name: Prepare source checks
         id: setup
-        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/prepare@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/prepare@ec97cb4e975a7bc62374075048bece857af68c45 # v0.6.61
         with:
           managed: false
           working-directory: daemon
@@ -39,7 +39,7 @@ jobs:
           tools: shellcheck@0.11.0
       - name: Prepare the full-history secret checker
         if: github.event_name != 'pull_request'
-        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/hosted-sdk@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/hosted-sdk@ec97cb4e975a7bc62374075048bece857af68c45 # v0.6.61
         with:
           managed: false
           tools: betterleaks@1.10.1
@@ -60,7 +60,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Complete source checks
         if: always()
-        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/complete@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/complete@ec97cb4e975a7bc62374075048bece857af68c45 # v0.6.61
         with:
           status: ${{ job.status }}
           project-outcome: ${{ steps.project.outcome == 'failure' && 'failure' || 'success' }}
@@ -97,7 +97,7 @@ jobs:
       # The documented prepare/complete frame keeps the same SDK/cache/lifecycle implementation.
       - name: Prepare the native job
         id: setup
-        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/prepare@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/prepare@ec97cb4e975a7bc62374075048bece857af68c45 # v0.6.61
         with:
           managed: false
           working-directory: daemon
@@ -117,7 +117,7 @@ jobs:
           if [ "$EVENT" = pull_request ]; then just test; else just verify-native; fi
       - name: Complete the native job
         if: always()
-        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/complete@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/complete@ec97cb4e975a7bc62374075048bece857af68c45 # v0.6.61
         with:
           status: ${{ job.status }}
           project-outcome: ${{ steps.project.outcome == 'failure' && 'failure' || 'success' }}
@@ -142,7 +142,7 @@ jobs:
     steps:
       - name: Prepare the declared minimum compiler
         id: setup
-        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/prepare@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/prepare@ec97cb4e975a7bc62374075048bece857af68c45 # v0.6.61
         with:
           managed: false
           working-directory: daemon
@@ -155,7 +155,7 @@ jobs:
           just check-minimum-rust
       - name: Complete the minimum-compiler check
         if: always()
-        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/complete@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+        uses: NDDev-Technocracy-OpenNetwork/nddev-ci/actions/complete@ec97cb4e975a7bc62374075048bece857af68c45 # v0.6.61
         with:
           status: ${{ job.status }}
           project-outcome: ${{ steps.project.outcome == 'failure' && 'failure' || 'success' }}
@@ -165,6 +165,6 @@ jobs:
           read-token: ${{ steps.setup.outputs.read-token }}
 
   merge-stops:
-    uses: NDDev-Technocracy-OpenNetwork/nddev-ci/.github/workflows/merge-stops.yml@6cf64d17c08dfc75392c55784b872fe9a6056553 # v0.6.57
+    uses: NDDev-Technocracy-OpenNetwork/nddev-ci/.github/workflows/merge-stops.yml@ec97cb4e975a7bc62374075048bece857af68c45 # v0.6.61
     permissions:
       contents: read
