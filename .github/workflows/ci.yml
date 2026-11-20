@@ -75,7 +75,7 @@ jobs:
         include:
           - os: ubuntu-24.04
             uv: '0.13.8'
-            tools: cargo-deny@0.20.2
+            tools: cargo-deny@0.21.0
           - os: macos-26
             uv: '0.13.8'
             tools: ''
