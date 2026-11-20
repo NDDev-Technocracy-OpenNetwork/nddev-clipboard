@@ -1,6 +1,6 @@
 # rldyour-clipboard — working notes
 
-Current stable release: 0.2.1. Keep daemon, Python client, changelog and
+Keep daemon, Python client, changelog and
 release metadata aligned; final machine qualification belongs in a metadata
 receipt outside this repository.
 
