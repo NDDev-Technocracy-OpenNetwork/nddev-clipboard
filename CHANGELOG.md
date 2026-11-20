@@ -3,6 +3,10 @@
 All notable changes to this project are documented here. The daemon, the
 Python client and this file are released together and carry the same version.
 
+## 0.2.3 — 2026-11-20
+
+- Run release qualification with nddev-ci v0.6.82.
+
 ## 0.2.2 — 2026-11-20
 
 - Qualify and publish the exact checked development source through the shared CI library.
